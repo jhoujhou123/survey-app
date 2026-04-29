@@ -747,36 +747,44 @@ elif st.session_state.page == 3:
                 st.stop()
         
             st.session_state["submitted"] = True
-            # data = dict(st.session_state)
-            # =========================
-            # 1️⃣ 建立乾淨輸出資料
-            # =========================
-            EXPORT_KEYS = ["pid","age","gender","height","weight","weight_1y","blood_type","dob","email",
-                           "choices","choices3","page3_choices"]
-            data = {}
-            for k in EXPORT_KEYS:
-                v = st.session_state.get(k)
-
-                # ===== list → 字串 =====
+            import json
+            
+            def safe_convert(v):
                 if isinstance(v, list):
-                    v = "|".join(v)
-
-                # ===== date → string =====
-                if k == "dob" and v is not None:
-                    v = str(v)
-
-                data[k] = v
-
-            # 1️⃣ ID
-            data["record_id"] = str(uuid.uuid4())
-
-            # 2️⃣ 時間
-            data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-            # 3️⃣ 清理
-            data = clean_data(data)
-
-            # 4️⃣ 👉 寫入 Google Sheet（取代 CSV）
+                    return "|".join(map(str, v))
+            
+                if isinstance(v, dict):
+                    return json.dumps(v, ensure_ascii=False)
+            
+                if hasattr(v, "isoformat"):
+                    return v.isoformat()
+            
+                if v is None:
+                    return ""
+                return v
+            
+            
+            IGNORE_KEYS = {
+                "page",
+                "submitted",
+                "family_count",
+                "other_count",
+                "drink_flag"
+            }
+            
+            data = {
+                k: safe_convert(v)
+                for k, v in st.session_state.items()
+                if k not in IGNORE_KEYS
+            }
+            
+            meta = {
+                "record_id": str(uuid.uuid4()),
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            
+            data = {**meta, **data}
+            
             save_to_gsheet(data)
 
             # 5️⃣ 完成頁
