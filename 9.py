@@ -37,7 +37,9 @@ def init_gsheet():
     )
     client = gspread.authorize(creds)
 
-    sheet = client.open("問卷資料").sheet1
+    sheet = client.open_by_url(
+        "https://docs.google.com/spreadsheets/d/1Afrj6EkBm1qe0y6RMNjd7wQgAQtTaM1dCO7l_bG1yKQ"
+    ).sheet1
     return sheet
 def save_to_gsheet(data):
 
