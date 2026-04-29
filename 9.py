@@ -37,7 +37,7 @@ def init_gsheet():
     )
     client = gspread.authorize(creds)
 
-    sheet = client.open("問卷資料").sheet1
+    sheet = client.open("未命名的試算表").sheet1
     return sheet
 def save_to_gsheet(data):
 
