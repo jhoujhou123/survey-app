@@ -201,7 +201,7 @@ if st.session_state.page == 1:
                 # st.session_state["blood_type"] = blood_type  # 🔥 強制寫入
                 # st.session_state["dob"] = dob  # 🔥 強制寫入
                 # st.session_state["email"] = email  # 🔥 強制寫入
-                # st.session_state.page = 2
+                st.session_state.page = 2
                 st.rerun()
 
         # if submitted:
@@ -824,6 +824,7 @@ st.write(
     "填表日期:",
     datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 )
+
 
 
 
