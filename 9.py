@@ -91,29 +91,93 @@ def clean_data(data):
     }
 
 
+
+SCHEMA = {
+    # 基本資料
+    "pid": "",
+    "age": None,
+    "gender": "",
+    "height": None,
+    "weight": None,
+    "weight_1y": None,
+    "blood_type": "",
+    "dob": None,
+    "email": "",
+
+    # 病史
+    "final_choices": [],
+    "cancer_type": "",
+    "cancer_year": None,
+    "cancer_month": None,
+    "cancer_age": None,
+
+    "acute_age": None,
+    "acute_treat_times": None,
+
+    "chronic_age": None,
+    "chronic_treat_times": None,
+
+    "diabetes_type": "",
+    "diabetes_age": None,
+    "diabetes_treatment": "",
+
+    # 檢查
+    "exam": "",
+    "MRI_treatment": "",
+
+    # 生活習慣
+    "smoke": "",
+    "smokes": None,
+    "smokes_years": None,
+
+    "other_smoke_type": [],
+    "smokes_other": "",
+
+    "drink1": "",
+    "drink2": "",
+    "drink_freq": "",
+    "max_drink": "",
+    "max_drink_type": "",
+    "drink4": "",
+}
+
+
+for k, v in SCHEMA.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
+def is_empty(v):
+    if v is None:
+        return True
+    if isinstance(v, str) and v.strip() == "":
+        return True
+    if isinstance(v, list) and len(v) == 0:
+        return True
+    return False
+
+
 if st.session_state.page == 1:
     st.header("📌 1. 基本資料")
     st.subheader("請填寫個人基本資料")
     st.divider()
     with st.form("survey"):
         # ===== 個案編號 =====
-        pid = st.text_input("個案編號", placeholder="請輸入個案編號")
+        st.session_state["pid"] = st.text_input("個案編號", placeholder="請輸入個案編號")
         # ===== 基本資料 =====
-        age = st.number_input("年齡", min_value=1, max_value=120,value=None,placeholder="請輸入年齡")
+        st.session_state["age"] = st.number_input("年齡", min_value=1, max_value=120,value=None,placeholder="請輸入年齡")
 
-        gender = st.selectbox("性別", ["男", "女"],index=None)
+        st.session_state["gender"] = st.selectbox("性別", ["男", "女"],index=None)
 
-        height = st.number_input("身高 (公分)", min_value=50, max_value=230,value=None,placeholder="請輸入身高")
+        st.session_state["height"] = st.number_input("身高 (公分)", min_value=50, max_value=230,value=None,placeholder="請輸入身高")
 
-        weight = st.number_input("體重 (公斤)", min_value=1, max_value=230,value=None,placeholder="請輸入體重")
+        st.session_state["weight"] =st.number_input("體重 (公斤)", min_value=1, max_value=230,value=None,placeholder="請輸入體重")
 
-        weight_1y = st.number_input("一年前體重 (公斤)", min_value=1, max_value=230,value=None,placeholder="請輸入一年前體重")
+        st.session_state["weight_1y"] =  st.number_input("一年前體重 (公斤)", min_value=1, max_value=230,value=None,placeholder="請輸入一年前體重")
 
-        blood_type = st.selectbox("血型", ["A", "B", "AB", "O","Rh","不清楚"],index=None,placeholder="請選擇血型")
+        st.session_state["blood_type"] = st.selectbox("血型", ["A", "B", "AB", "O","Rh","不清楚"],index=None,placeholder="請選擇血型")
 
-        dob = st.date_input("出生年月日",value=None, min_value=date(1900, 1, 1),max_value=date.today())
+        st.session_state["dob"] = st.date_input("出生年月日",value=None, min_value=date(1900, 1, 1),max_value=date.today())
 
-        email = st.text_input("E-mail", placeholder="請輸入 email")
+        st.session_state["email"] = st.text_input("E-mail", placeholder="請輸入 email")
         # if dob:
         #     today = date.today()
         #     agecount = today.year - dob.year - (
@@ -124,37 +188,29 @@ if st.session_state.page == 1:
         submitted = st.form_submit_button("下一頁 ➡")
 
         if submitted:
-            missing = [v for v in [pid, age, gender, height, weight,weight_1y, blood_type, dob, email] if not v]
+            REQUIRED_FIELDS = [
+                "pid",
+                "age",
+                "gender",
+                "height",
+                "weight",
+                "weight_1y",
+                "blood_type",
+                "dob",
+                "email"
+            ]
+            missing = [
+                k for k in REQUIRED_FIELDS
+                if is_empty(st.session_state.get(k))
+            ]
+
             if missing:
-                st.error("⚠️ 仍有空格尚未填寫")
+                st.error("⚠️ 尚未填寫欄位：")
+                st.write(missing)
+                st.stop()
             else:
-                st.session_state["pid"] = pid  # 🔥 強制寫入
-                st.session_state["age"] = age  # 🔥 強制寫入
-                st.session_state["gender"] = gender  # 🔥 強制寫入
-                st.session_state["height"] = height  # 🔥 強制寫入
-                st.session_state["weight"] = weight  # 🔥 強制寫入
-                st.session_state["weight_1y"] = weight_1y  # 🔥 強制寫入
-                st.session_state["blood_type"] = blood_type  # 🔥 強制寫入
-                st.session_state["dob"] = dob  # 🔥 強制寫入
-                st.session_state["email"] = email  # 🔥 強制寫入
                 st.session_state.page = 2
                 st.rerun()
-
-        # if submitted:
-        #     if pid == "":
-        #         st.warning("⚠️ 請輸入個案編號")
-        #     elif email == "":
-        #         st.error("❌ 請輸入 Email")
-        #     elif not re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email):
-        #         st.error("❌ Email 格式不正確")
-        #     elif age == 0 or age is None:
-        #         st.error("❌ 請輸入年齡")
-        #     elif dob is None:
-        #         st.error("請填寫出生年月日")
-        #     else:
-        #         st.session_state["gender"] = gender  # 🔥 強制寫入
-        #         st.session_state.page = 2
-        #         st.rerun()
         st.divider()
 # =========================
 # PAGE 2
