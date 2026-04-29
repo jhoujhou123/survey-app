@@ -797,23 +797,23 @@ elif st.session_state.page == 3:
                 st.stop()
         
             st.session_state["submitted"] = True
-            # 1️⃣ 用 schema 統一抓資料（🔥放這裡）
-            data = {k: st.session_state.get(k, None) for k in EXPORT_SCHEMA}
 
-            # 2️⃣ 系統欄位（額外補）
+              # ======================
+            # 🔥 組資料
+            # ======================
+            data = {k: st.session_state.get(k, None) for k in EXPORT_SCHEMA}
             data["record_id"] = str(uuid.uuid4())[:8]
             data["submit_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            # 3️⃣ family / list 轉文字（避免 Google Sheet 爆）
+            # list → string
             for k, v in data.items():
                 if isinstance(v, list):
                     data[k] = ", ".join(map(str, v))
 
-            # 4️⃣ 轉 DataFrame
-            df = pd.DataFrame([data])
-
-            st.dataframe(df, use_container_width=True)
-
+            # ======================
+            # 🔥 這一行你現在少掉的關鍵
+            # ======================
+            save_to_gsheet(data)
             # 5️⃣ 完成頁
             st.session_state.page = "done"
             st.rerun()
@@ -824,7 +824,6 @@ st.write(
     "填表日期:",
     datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 )
-
 
 
 
