@@ -304,6 +304,8 @@ elif st.session_state.page == 2:
     # 胰臟癌家族病史
     # =========================
     if answer1 == "有":
+        st.session_state["answer1"] = None
+
         st.markdown("### 👨‍👩‍👧‍👦 家族病史填寫")
         if "family_count" not in st.session_state:
             st.session_state.family_count = 1
@@ -351,7 +353,7 @@ elif st.session_state.page == 2:
                     "請填寫與之關係",
                     key=f"page3_relation_other_{i}"
                 )
-        answer2 = st.selectbox("其他家族病史?",["無", "有"],key="answer2",index=None)
+    answer2 = st.selectbox("其他家族病史?",["無", "有"],key="answer2",index=None)
     # =========================
     # 其他家族病史
     # =========================
@@ -587,8 +589,6 @@ elif st.session_state.page == 2:
                         "other": st.session_state.get(f"page3_relation_other_{i}")
                     })
                 st.session_state["family_rows"] = rows
-
-                st.session_state["answer2"] = st.session_state.get("answer2")
                 other_rows = []
                 for i in range(3):  # 如果你也要固定3筆
                     other_rows.append({
@@ -824,6 +824,7 @@ st.write(
     "填表日期:",
     datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 )
+
 
 
 
