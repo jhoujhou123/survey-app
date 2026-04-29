@@ -8,7 +8,7 @@ import gspread   # ✅ 要加這行
 
 import uuid
 from datetime import datetime
-#終端機輸入streamlit run c:/Users/Jinzer/Desktop/python/問卷收集/9.py
+#終端機輸入streamlit run c:/Users/Jinzer/Desktop/python/問卷收集/11.py
 if "submitted" not in st.session_state:
     st.session_state["submitted"] = False
 
@@ -152,7 +152,7 @@ EXPORT_SCHEMA = (
 
 
 for k in EXPORT_SCHEMA:
-    st.session_state.setdefault(k, None)
+    st.session_state.setdefault(k, "")
 
 
 if st.session_state.page == 1:
@@ -161,23 +161,23 @@ if st.session_state.page == 1:
     st.divider()
     with st.form("survey"):
         # ===== 個案編號 =====
-        pid = st.text_input("個案編號", placeholder="請輸入個案編號")
+        pid = st.text_input("個案編號", placeholder="請輸入個案編號",key="pid")
         # ===== 基本資料 =====
-        age = st.number_input("年齡", min_value=1, max_value=120,value=None,placeholder="請輸入年齡")
+        age = st.number_input("年齡", min_value=1, max_value=120,value=None,placeholder="請輸入年齡",key="age")
 
-        gender = st.selectbox("性別", ["男", "女"],index=None)
+        gender = st.selectbox("性別", ["男", "女"],index=None,key="gender")
 
-        height = st.number_input("身高 (公分)", min_value=50, max_value=230,value=None,placeholder="請輸入身高")
+        height = st.number_input("身高 (公分)", min_value=50, max_value=230,value=None,placeholder="請輸入身高",key="height")
 
-        weight = st.number_input("體重 (公斤)", min_value=1, max_value=230,value=None,placeholder="請輸入體重")
+        weight = st.number_input("體重 (公斤)", min_value=1, max_value=230,value=None,placeholder="請輸入體重",key="weight")
 
-        weight_1y = st.number_input("一年前體重 (公斤)", min_value=1, max_value=230,value=None,placeholder="請輸入一年前體重")
+        weight_1y = st.number_input("一年前體重 (公斤)", min_value=1, max_value=230,value=None,placeholder="請輸入一年前體重",key="weight_1y")
 
-        blood_type = st.selectbox("血型", ["A", "B", "AB", "O","Rh","不清楚"],index=None,placeholder="請選擇血型")
+        blood_type = st.selectbox("血型", ["A", "B", "AB", "O","Rh","不清楚"],index=None,placeholder="請選擇血型",key="blood_type")
 
-        dob = st.date_input("出生年月日",value=None, min_value=date(1900, 1, 1),max_value=date.today())
+        dob = st.date_input("出生年月日",value=None, min_value=date(1900, 1, 1),max_value=date.today(),key="dob")
 
-        email = st.text_input("E-mail", placeholder="請輸入 email")
+        email = st.text_input("E-mail", placeholder="請輸入 email",key="email")
         # if dob:
         #     today = date.today()
         #     agecount = today.year - dob.year - (
@@ -192,33 +192,17 @@ if st.session_state.page == 1:
             if missing:
                 st.error("⚠️ 仍有空格尚未填寫")
             else:
-                # st.session_state["pid"] = pid  # 🔥 強制寫入
-                # st.session_state["age"] = age  # 🔥 強制寫入
-                # st.session_state["gender"] = gender  # 🔥 強制寫入
-                # st.session_state["height"] = height  # 🔥 強制寫入
-                # st.session_state["weight"] = weight  # 🔥 強制寫入
-                # st.session_state["weight_1y"] = weight_1y  # 🔥 強制寫入
-                # st.session_state["blood_type"] = blood_type  # 🔥 強制寫入
-                # st.session_state["dob"] = dob  # 🔥 強制寫入
-                # st.session_state["email"] = email  # 🔥 強制寫入
+                st.session_state["pid"] = pid  # 🔥 強制寫入
+                st.session_state["age"] = age  # 🔥 強制寫入
+                st.session_state["gender"] = gender  # 🔥 強制寫入
+                st.session_state["height"] = height  # 🔥 強制寫入
+                st.session_state["weight"] = weight  # 🔥 強制寫入
+                st.session_state["weight_1y"] = weight_1y  # 🔥 強制寫入
+                st.session_state["blood_type"] = blood_type  # 🔥 強制寫入
+                st.session_state["dob"] = dob  # 🔥 強制寫入
+                st.session_state["email"] = email  # 🔥 強制寫入
                 st.session_state.page = 2
                 st.rerun()
-
-        # if submitted:
-        #     if pid == "":
-        #         st.warning("⚠️ 請輸入個案編號")
-        #     elif email == "":
-        #         st.error("❌ 請輸入 Email")
-        #     elif not re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email):
-        #         st.error("❌ Email 格式不正確")
-        #     elif age == 0 or age is None:
-        #         st.error("❌ 請輸入年齡")
-        #     elif dob is None:
-        #         st.error("請填寫出生年月日")
-        #     else:
-        #         st.session_state["gender"] = gender  # 🔥 強制寫入
-        #         st.session_state.page = 2
-        #         st.rerun()
         st.divider()
 # =========================
 # PAGE 2
@@ -229,14 +213,9 @@ elif st.session_state.page == 2:
     st.header("📌 2. 既往病史")
     st.subheader("請填寫既往病史")
     st.divider()
-
-
-    import streamlit as st
-
     def sync_no_disease():
         if st.session_state["no_disease"]:
             st.session_state["choices"] = []
-
     def sync_choices():
         if st.session_state["choices"]:
             st.session_state["no_disease"] = False
@@ -472,7 +451,7 @@ elif st.session_state.page == 2:
         "other_symptom": other_sy
     }
 
-    st.session_state["final_choices3"] = final_data
+    # st.session_state["final_choices3"] = final_data
     st.divider()
 
     col1, col2 = st.columns(2)
@@ -564,21 +543,21 @@ elif st.session_state.page == 2:
                     st.error(f"⚠️ {e}")
                 st.stop()
             else:
-                # st.session_state["final_choices"] = st.session_state.get("final_choices", [])
-                # st.session_state["cancer_type"] = st.session_state.get("cancer_type")
-                # st.session_state["cancer_year"] = st.session_state.get("cancer_year")
-                # st.session_state["cancer_month"] = st.session_state.get("cancer_month")
-                # st.session_state["cancer_age"] = st.session_state.get("cancer_age")
-                # st.session_state["acute_age"] = st.session_state.get("acute_age")
-                # st.session_state["acute_treat_times"] = st.session_state.get("acute_treat_times")
-                # st.session_state["chronic_age"] = st.session_state.get("chronic_age")
-                # st.session_state["chronic_treat_times"] = st.session_state.get("chronic_treat_times")
-                # st.session_state["diabetes_type"] = st.session_state.get("diabetes_type")
-                # st.session_state["diabetes_age"] = st.session_state.get("diabetes_age")
-                # st.session_state["diabetes_treatment"] = st.session_state.get("diabetes_treatment")
-                # st.session_state["exam"] = st.session_state.get("exam")
-                # st.session_state["MRI_treatment"] = st.session_state.get("MRI_treatment")
-                # st.session_state["answer1"] = st.session_state.get("answer1")
+                st.session_state["final_choices"] = st.session_state.get("final_choices", [])
+                st.session_state["cancer_type"] = st.session_state.get("cancer_type")
+                st.session_state["cancer_year"] = st.session_state.get("cancer_year")
+                st.session_state["cancer_month"] = st.session_state.get("cancer_month")
+                st.session_state["cancer_age"] = st.session_state.get("cancer_age")
+                st.session_state["acute_age"] = st.session_state.get("acute_age")
+                st.session_state["acute_treat_times"] = st.session_state.get("acute_treat_times")
+                st.session_state["chronic_age"] = st.session_state.get("chronic_age")
+                st.session_state["chronic_treat_times"] = st.session_state.get("chronic_treat_times")
+                st.session_state["diabetes_type"] = st.session_state.get("diabetes_type")
+                st.session_state["diabetes_age"] = st.session_state.get("diabetes_age")
+                st.session_state["diabetes_treatment"] = st.session_state.get("diabetes_treatment")
+                st.session_state["exam"] = st.session_state.get("exam")
+                st.session_state["MRI_treatment"] = st.session_state.get("MRI_treatment")
+                st.session_state["answer1"] = st.session_state.get("answer1")
                 rows = []
                 for i in range(3):
                     rows.append({
@@ -601,8 +580,11 @@ elif st.session_state.page == 2:
 
                 # 🔥 強制寫入 session_state
                 st.session_state["other_family_rows"] = other_rows
-
-
+                st.session_state["gene"] = st.session_state.get("gene")
+                st.session_state["probiotics"] = st.session_state.get("probiotics")
+                st.session_state["antibiotics"] = st.session_state.get("antibiotics")
+                st.session_state["colonoscopy"] = st.session_state.get("colonoscopy")
+                st.session_state["final_choices3"] = final_data
                 st.session_state.page = 3
                 st.rerun()
 
@@ -824,6 +806,7 @@ st.write(
     "填表日期:",
     datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 )
+
 
 
 
