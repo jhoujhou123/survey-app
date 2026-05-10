@@ -33,10 +33,17 @@ def init_gsheet():
     #     "dogwood-cinema-494201-u6-248629932a97.json",
     #     scopes=scope
     # )
-    creds = Credentials.from_service_account_file(
-    r"C:\Users\Jinzer\Desktop\python\問卷收集\dogwood-cinema-494201-u6-248629932a97.json",
-    scopes=scope
-    )
+
+    if os.path.exists("service_account.json"):
+    # 本機
+        creds = Credentials.from_service_account_file(
+        r"C:\Users\Jinzer\Desktop\python\問卷收集\dogwood-cinema-494201-u6-248629932a97.json",
+        scopes=scope)
+    else:
+    # Streamlit Cloud
+        creds = Credentials.from_service_account_info(
+            st.secrets["gcp_service_account"],
+            scopes=scope)
 
     client = gspread.authorize(creds)
 
