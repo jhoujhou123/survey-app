@@ -1,3 +1,4 @@
+import json 
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -5,10 +6,10 @@ import os
 import re
 from datetime import date
 import gspread   # ✅ 要加這行
-
+    
 import uuid
 from datetime import datetime
-#終端機輸入streamlit run c:/Users/Jinzer/Desktop/python/問卷收集/11.py
+#終端機輸入streamlit run c:/Users/Jinzer/Desktop/python/問卷收集/14.py
 if "submitted" not in st.session_state:
     st.session_state["submitted"] = False
 
@@ -16,53 +17,275 @@ if "page" not in st.session_state:
     st.session_state["page"] = 1
 st.title("📊 發展可規模化之台灣胰臟癌高風險族群 臨床試驗/研究受試者問卷")
 from google.oauth2.service_account import Credentials
+# ======================
+# 🔐 Google Sheets 設定
+# ======================
 def init_gsheet():
     import gspread
-    from oauth2client.service_account import ServiceAccountCredentials
+    from google.oauth2.service_account import Credentials
+
     scope = [
-        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
-    #自己內網的話
-    # creds = ServiceAccountCredentials.from_json_keyfile_name(
-    # r"c:\Users\Jinzer\Desktop\dogwood-cinema-494201-u6-e5739d95639f.json", scope
-    # )
 
-    # client = gspread.authorize(creds)
-    #公開網路的話
-    #Streamlit → Google Sheets（雲端Excel）
-    creds = Credentials.from_service_account_info(
-    st.secrets["gcp_service_account"],
+    # creds = Credentials.from_service_account_file(
+    #     "dogwood-cinema-494201-u6-248629932a97.json",
+    #     scopes=scope
+    # )
+    creds = Credentials.from_service_account_file(
+    r"C:\Users\Jinzer\Desktop\python\問卷收集\dogwood-cinema-494201-u6-248629932a97.json",
     scopes=scope
     )
+
     client = gspread.authorize(creds)
 
-    sheet = client.open("未命名的試算表").sheet1
+    sheet = client.open_by_key(
+        "1Afrj6EkBm1qe0y6RMNjd7wQgAQtTaM1dCO7l_bG1yKQ"
+    ).sheet1
+
     return sheet
+# ======================
+# 💾 寫入 Google Sheet
+# ======================
 def save_to_gsheet(data):
+
+    import json
+    import pandas as pd
+    from datetime import date, datetime
+    st.write("DEBUG json:", json)
 
     sheet = init_gsheet()
 
-    # 👉 如果你有標題列（建議一定要有）
     headers = sheet.row_values(1)
 
+
+
+    # 自動新增新欄位
+    new_cols = [k for k in data.keys() if k not in headers]
+
+    if new_cols:
+        headers.extend(new_cols)
+
+        sheet.update(
+            "1:1",
+            [headers]
+        )
+
+    # 第一份資料
+    if not headers:
+        headers = list(data.keys())
+        sheet.append_row(headers)
+
+
     row = []
+
     for h in headers:
-        row.append(data.get(h, ""))
+        v = data.get(h, "")
+
+        # dict / list
+        if isinstance(v, (dict, list)):
+            v = json.dumps(v, ensure_ascii=False)
+
+        elif isinstance(v, (date, datetime)):
+            v = str(v)
+
+        elif v is None:
+            v = ""
+
+        else:
+            # pandas NaN protection
+            try:
+                if pd.isna(v):
+                    v = ""
+            except:
+                pass
+
+        row.append(v)
 
     sheet.append_row(row)
+# ======================
+# 🧠 清理資料（核心）
+# ======================
 
-# ======================
-# 問卷題目
-# ======================
-#st.radio     選項 ≤ 5~7 個
-#st.selectbox 選項很多（> 7 個）
-# ======================
-# 初始化 page
-# ======================
-# ======================
-# 下一頁 / 上一頁控制
-# ======================
+def build_clean_data():
+
+    data = {}
+
+    # =========================
+    # 0️⃣ 系統欄位
+    # =========================
+    data["record_id"] = str(uuid.uuid4())[:8]
+    data["submit_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # =========================
+    # 1️⃣ 基本資料
+    # =========================
+    data["pid"] = st.session_state.get("pid")
+    data["age"] = st.session_state.get("age")
+    data["gender"] = st.session_state.get("gender")
+    data["height"] = st.session_state.get("height")
+    data["weight"] = st.session_state.get("weight")
+    data["weight_1y"] = st.session_state.get("weight_1y")
+    data["blood_type"] = st.session_state.get("blood_type")
+    data["email"] = st.session_state.get("email")
+    data["akknote"] = st.session_state.get("akknote")
+
+    dob = st.session_state.get("dob")
+    data["dob"] = str(dob) if dob else None
+
+
+
+    # BMI
+    try:
+        if data["height"] and data["weight"]:
+            h = data["height"] / 100
+            data["bmi"] = round(data["weight"] / (h ** 2), 2)
+        else:
+            data["bmi"] = None
+    except:
+        data["bmi"] = None
+
+    # =========================
+    # 2️⃣ 慢性病
+    # =========================
+    diseases = st.session_state.get("final_choices") or []
+    data["diseases"] = diseases
+    data["no_disease"] = st.session_state.get("no_disease", False)
+
+    data["dm_flag"] = int("糖尿病" in diseases)
+    data["cancer_flag"] = int("癌症" in diseases)
+    data["pancreatitis_flag"] = int(
+        "急性胰臟炎" in diseases or "慢性胰臟炎" in diseases
+    )
+
+    # =========================
+    # 3️⃣ 疾病細節（raw dict）
+    # =========================
+    data["cancer"] = {
+        "type": st.session_state.get("cancer_type"),
+        "year": st.session_state.get("cancer_year"),
+        "month": st.session_state.get("cancer_month"),
+        "age": st.session_state.get("cancer_age")
+    }
+
+    data["acute_pancreatitis"] = {
+        "age": st.session_state.get("acute_age"),
+        "times": st.session_state.get("acute_treat_times")
+    }
+
+    data["chronic_pancreatitis"] = {
+        "age": st.session_state.get("chronic_age"),
+        "times": st.session_state.get("chronic_treat_times")
+    }
+
+    data["diabetes"] = {
+        "type": st.session_state.get("diabetes_type"),
+        "age": st.session_state.get("diabetes_age"),
+        "treatment": st.session_state.get("diabetes_treatment")
+    }
+
+    # =========================
+    # 4️⃣ 檢查
+    # =========================
+    data["exam"] = st.session_state.get("exam")
+    data["exam_type"] = st.session_state.get("MRI_treatment")
+
+    # =========================
+    # 5️⃣ 家族病史（SAFE version）
+    # =========================
+    family_count = st.session_state.get("family_count") or 0
+    pancreatic_family = []
+
+    for i in range(int(family_count)):
+        pancreatic_family.append({
+            "age": st.session_state.get(f"page3_cancer_age_{i}"),
+            "relation": st.session_state.get(f"page3_relation_{i}"),
+            "type": st.session_state.get(f"page3_relation_type_{i}"),
+            "other": st.session_state.get(f"page3_relation_other_{i}")
+        })
+
+    data["pancreatic_family_history"] = pancreatic_family
+
+    other_count = st.session_state.get("other_count") or 0
+    other_family = []
+
+    for i in range(int(other_count)):
+        other_family.append({
+            "age": st.session_state.get(f"other_cancer_age_{i}"),
+            "relation": st.session_state.get(f"other_relation_{i}"),
+            "type": st.session_state.get(f"other_relation_type_{i}"),
+            "other": st.session_state.get(f"other_relation_other_{i}")
+        })
+
+    data["other_family_history"] = other_family
+
+    # =========================
+    # 6️⃣ 其他
+    # =========================
+    data["gene_test"] = st.session_state.get("gene")
+    data["probiotics"] = st.session_state.get("probiotics")
+    data["antibiotics"] = st.session_state.get("antibiotics")
+    data["colonoscopy"] = st.session_state.get("colonoscopy")
+
+    # =========================
+    # 7️⃣ 症狀
+    # =========================
+    data["symptoms"] = st.session_state.get("final_choices3") or {
+        "symptoms": [],
+        "no_symptom": None,
+        "other_symptom": None
+    }
+
+    # =========================
+    # 8️⃣ 吸菸
+    # =========================
+    data["smoke"] = st.session_state.get("smoke")
+
+    if data["smoke"] == "每天吸(幾乎)":
+        data["avg_smoke"] = st.session_state.get("smokes")
+        data["smoke_years"] = st.session_state.get("smokes_years")
+
+    if data["smoke"] == "已經戒菸":
+        data["quit_smoke_year"] = st.session_state.get("quit_smoke_year")
+        data["quit_smoke_month"] = st.session_state.get("quit_smoke_month")
+        data["quit_smoke_age"] = st.session_state.get("quit_smoke_age")
+
+    # =========================
+    # 9️⃣ 其他菸品
+    # =========================
+    data["other_smoke"] = st.session_state.get("other_smoke")
+
+    other_type = st.session_state.get("other_smoke_type") or []
+    data["other_smoke_type"] = other_type
+    data["other_smoke_desc"] = st.session_state.get("smokes_other") if "其他" in other_type else None
+
+    # =========================
+    # 🔟 飲酒
+    # =========================
+    drink1 = st.session_state.get("drink1")
+    data["drink1"] = drink1
+
+    drinking_levels = [
+        "每天", "一周5-6天", "一周3-4天", "一周2天", "一周1天",
+        "一個月2-3天", "一個月1天", "一年3-11天", "1年1-2天"
+    ]
+
+    if drink1 in drinking_levels:
+        data["drink_flag"] = 1
+        data["alcohol_type"] = st.session_state.get("alcohol_type")
+        data["drink2"] = st.session_state.get("drink2")
+        data["drink_freq"] = st.session_state.get("drink_freq")
+        data["max_drink"] = st.session_state.get("max_drink")
+        data["max_drink_type"] = st.session_state.get("max_drink_type")
+
+        if st.session_state.get("drink4") == "是":
+            data["quit_alcohol_year"] = st.session_state.get("quit_alcohol_year")
+            data["quit_alcohol_month"] = st.session_state.get("quit_alcohol_month")
+    else:
+        data["drink_flag"] = 0
+
+    return data
 def next_page():
     st.session_state.page += 1
 
@@ -88,96 +311,37 @@ def clean_data(data):
     }
 
 
-
-BASIC_SCHEMA = [
-    "pid",
-    "age",
-    "gender",
-    "height",
-    "weight",
-    "weight_1y",
-    "blood_type",
-    "dob",
-    "email",
-]
-MEDICAL_SCHEMA = [
-    "final_choices",
-    "cancer_type",
-    "cancer_year",
-    "cancer_month",
-    "cancer_age",
-    "acute_age",
-    "acute_treat_times",
-    "chronic_age",
-    "chronic_treat_times",
-    "diabetes_type",
-    "diabetes_age",
-    "diabetes_treatment",
-    "exam",
-    "MRI_treatment",
-    "answer1",
-    "answer2",
-    "gene",
-    "probiotics",
-    "antibiotics",
-    "colonoscopy",
-]
-FAMILY_SCHEMA = [
-    "family_rows",
-    "other_family_rows",
-]
-LIFESTYLE_SCHEMA = [
-    "smoke",
-    "smokes",
-    "smokes_years",
-    "quit_year",
-    "quit_month",
-    "quit_age",
-    "other_smoke",
-    "other_smoke_type",
-    "smokes_other",
-    "drink1",
-    "drink2",
-    "drink_freq",
-    "max_drink",
-    "max_drink_type",
-    "drink4",
-]
-EXPORT_SCHEMA = (
-    BASIC_SCHEMA +
-    MEDICAL_SCHEMA +
-    FAMILY_SCHEMA +
-    LIFESTYLE_SCHEMA
-)
-
-
-for k in EXPORT_SCHEMA:
-    st.session_state.setdefault(k, "")
-
-
 if st.session_state.page == 1:
     st.header("📌 1. 基本資料")
     st.subheader("請填寫個人基本資料")
     st.divider()
+    # if "bnote" not in st.session_state:
+    #     st.session_state["bnote"] = ""
     with st.form("survey"):
         # ===== 個案編號 =====
-        pid = st.text_input("個案編號", placeholder="請輸入個案編號",key="pid")
+        pid = st.text_input("個案編號", placeholder="請輸入個案編號")
+
         # ===== 基本資料 =====
-        age = st.number_input("年齡", min_value=1, max_value=120,value=None,placeholder="請輸入年齡",key="age")
+        age = st.number_input("年齡", min_value=1, max_value=120,value=None,placeholder="請輸入年齡")
 
-        gender = st.selectbox("性別", ["男", "女"],index=None,key="gender")
+        gender = st.selectbox("性別", ["男", "女"],index=None)
 
-        height = st.number_input("身高 (公分)", min_value=50, max_value=230,value=None,placeholder="請輸入身高",key="height")
+        height = st.number_input("身高 (公分)", min_value=50, max_value=230,value=None,placeholder="請輸入身高")
 
-        weight = st.number_input("體重 (公斤)", min_value=1, max_value=230,value=None,placeholder="請輸入體重",key="weight")
+        weight = st.number_input("體重 (公斤)", min_value=1, max_value=230,value=None,placeholder="請輸入體重")
 
-        weight_1y = st.number_input("一年前體重 (公斤)", min_value=1, max_value=230,value=None,placeholder="請輸入一年前體重",key="weight_1y")
+        weight_1y = st.number_input("一年前體重 (公斤)", min_value=1, max_value=230,value=None,placeholder="請輸入一年前體重")
 
-        blood_type = st.selectbox("血型", ["A", "B", "AB", "O","Rh","不清楚"],index=None,placeholder="請選擇血型",key="blood_type")
+        blood_type = st.selectbox("血型", ["A", "B", "AB", "O","Rh","不清楚"],index=None,placeholder="請選擇血型")
 
-        dob = st.date_input("出生年月日",value=None, min_value=date(1900, 1, 1),max_value=date.today(),key="dob")
+        dob = st.date_input("出生年月日",value=None, min_value=date(1900, 1, 1),max_value=date.today())
 
-        email = st.text_input("E-mail", placeholder="請輸入 email",key="email")
+        email = st.text_input("E-mail", placeholder="請輸入 email")
+        st.divider()
+        akknote =st.text_input("備註", placeholder="此欄位不需輸入")
+        # st.session_state.pop("akknote", None)
+
+        # st.write(st.session_state.get("aanote"))
         # if dob:
         #     today = date.today()
         #     agecount = today.year - dob.year - (
@@ -192,30 +356,82 @@ if st.session_state.page == 1:
             if missing:
                 st.error("⚠️ 仍有空格尚未填寫")
             else:
-                st.session_state["pid"] = pid  # 🔥 強制寫入
-                st.session_state["age"] = age  # 🔥 強制寫入
-                st.session_state["gender"] = gender  # 🔥 強制寫入
-                st.session_state["height"] = height  # 🔥 強制寫入
-                st.session_state["weight"] = weight  # 🔥 強制寫入
-                st.session_state["weight_1y"] = weight_1y  # 🔥 強制寫入
-                st.session_state["blood_type"] = blood_type  # 🔥 強制寫入
-                st.session_state["dob"] = dob  # 🔥 強制寫入
-                st.session_state["email"] = email  # 🔥 強制寫入
+                st.session_state.update({
+                "pid": pid,
+                "age": age,
+                "gender": gender,
+                "height": height,
+                "weight": weight,
+                "weight_1y": weight_1y,
+                "blood_type": blood_type,
+                "dob": dob,
+                "email": email,
+                "akknote": akknote
+                })
                 st.session_state.page = 2
                 st.rerun()
-        st.divider()
+        # if submitted:
+        #     if pid == "":
+        #         st.warning("⚠️ 請輸入個案編號")
+        #     elif email == "":
+        #         st.error("❌ 請輸入 Email")
+        #     elif not re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email):
+        #         st.error("❌ Email 格式不正確")
+        #     elif age == 0 or age is None:
+        #         st.error("❌ 請輸入年齡")
+        #     elif dob is None:
+        #         st.error("請填寫出生年月日")
+        #     else:
+        #         st.session_state["gender"] = gender  # 🔥 強制寫入
+        #         st.session_state.page = 2
+        #         st.rerun()
+
 # =========================
 # PAGE 2
 # =========================
-
-
 elif st.session_state.page == 2:
     st.header("📌 2. 既往病史")
     st.subheader("請填寫既往病史")
     st.divider()
+    # =========================
+    # ☑️ 主複選題
+    # =========================
+    # def clear_choices():
+    #     st.session_state["choices"] = []
+    # no_disease = st.checkbox(
+    #     "以上皆無",
+    #     on_change=clear_choices
+    # )
+    # choices = st.multiselect(
+    #     "您是否曾患有下列慢性疾病（請在適當項目前打勾）",
+    #     ["高血壓", "心臟病", "癌症", "急性胰臟炎", "慢性胰臟炎", "糖尿病"],
+    #     key="choices",
+    #     disabled=no_disease
+    # )
+    # def clear_choices():
+    #     st.session_state["choices"] = []
+
+    # no_disease = st.checkbox(
+    #     "以上皆無",
+    #     on_change=clear_choices
+    # )
+
+    # choices = st.multiselect(
+    #     "慢性疾病",
+    #     ["高血壓", "心臟病", "癌症", "急性胰臟炎", "慢性胰臟炎", "糖尿病"],
+    #     key="choices",
+    #     disabled=no_disease
+    # )
+
+    # final_choices = [] if no_disease else choices
+    # st.session_state["final_choices"] = final_choices
+
+    import streamlit as st
+
     def sync_no_disease():
         if st.session_state["no_disease"]:
             st.session_state["choices"] = []
+
     def sync_choices():
         if st.session_state["choices"]:
             st.session_state["no_disease"] = False
@@ -235,7 +451,25 @@ elif st.session_state.page == 2:
     )
 
     final_choices = [] if st.session_state.get("no_disease") else st.session_state.get("choices", [])
+
+    st.session_state["final_choices"] = final_choices
+
+
+
     # =========================
+    # 邏輯處理（互斥）
+    # =========================
+     # =========================
+    # 「以上皆無」互斥
+    # =========================
+    # if "以上皆無" in choices and len(choices) > 1:
+    #     choices = ["以上皆無"]
+    #     st.session_state.choices = choices
+
+    # if "以上皆無" in choices:
+    #     st.info("已選擇『以上皆無』，其他疾病將忽略")
+
+     
     # =========================
     # 🅰️A選項 → 額外輸入
     # =========================
@@ -267,6 +501,7 @@ elif st.session_state.page == 2:
             diabetes_treatment  = st.selectbox('治療方式',["無", "斷食", "口服藥物","注射胰島素","不知道"],index=None,key="diabetes_treatment")
             st.subheader("若有藥物治療，請後續使用E-mail或Line方式提供藥物名稱")
     st.divider()
+        
     exam = st.selectbox("過去一年內是否做過內視鏡超音波或MRI檢查?",
         ["是", "否"],index=None,key="exam")
     
@@ -282,80 +517,139 @@ elif st.session_state.page == 2:
     # =========================
     # 胰臟癌家族病史
     # =========================
+    MAX_FAMILY = 5
     if answer1 == "有":
-        st.session_state["answer1"] = None
-
         st.markdown("### 👨‍👩‍👧‍👦 家族病史填寫")
+        # 初始化
         if "family_count" not in st.session_state:
             st.session_state.family_count = 1
-        MAX_FAMILY = 3
-        col_add1, col_del1 = st.columns(2)
 
-        with col_add1:
-            if st.button("➕ 新增一筆家族資料", key="add_family"):
-                if st.session_state.family_count < MAX_FAMILY:
-                    st.session_state.family_count += 1
-                    st.rerun()
-                else:
-                    st.warning("最多只能輸入 3 筆家族資料")
+        # =========================
+        # ➕ 新增
+        # =========================
+        if st.button("➕ 新增一筆家族資料"):
+            if st.session_state.family_count < MAX_FAMILY:
+                st.session_state.family_count += 1
+            else:
+                st.warning(f"最多只能新增 {MAX_FAMILY} 筆")
 
-        with col_del1:
-            if st.button("➖ 刪除一筆家族資料", key="del_family"):
-                if st.session_state.family_count > 1:
-                    st.session_state.family_count -= 1
-                    st.rerun()
+        # =========================
+        # 🔁 每一筆
+        # =========================
         for i in range(st.session_state.family_count):
-            st.markdown(f"### 👨‍👩‍👧‍👦 第 {i+1} 筆")
 
-            st.number_input(
-                "幾歲罹癌",
-                key=f"page3_cancer_age_{i}",
-                min_value=10,
-                max_value=120,
-                value=None,
-                placeholder="請輸入幾歲罹癌"
-            )
+            with st.container(border=True):
+                col_title, col_del = st.columns([4, 1])
 
-            st.text_input(
-                "稱謂（父親/母親/兄弟）",
-                key=f"page3_relation_{i}"
-            )
+                with col_title:
+                    st.markdown(f"#### 第 {i+1} 筆")
 
-            choices1 = st.selectbox(
-                "與之關係",
-                ["一等親", "二等親", "其他"],
-                key=f"page3_relation_type_{i}"
-            )
+                # =========================
+                # ❌ 單筆刪除（重點）
+                # =========================
+                with col_del:
+                    if st.button("❌", key=f"del_{i}"):
+                        # 刪除該筆資料（shift後面資料）
+                        for j in range(i, st.session_state.family_count - 1):
+                            for field in ["cancer_age", "relation", "relation_type", "relation_other"]:
+                                st.session_state[f"page3_{field}_{j}"] = st.session_state.get(
+                                    f"page3_{field}_{j+1}"
+                                )
 
-            if choices1 == "其他":
-                st.text_input(
-                    "請填寫與之關係",
-                    key=f"page3_relation_other_{i}"
+                        # 清掉最後一筆
+                        last = st.session_state.family_count - 1
+                        for field in ["cancer_age", "relation", "relation_type", "relation_other"]:
+                            st.session_state.pop(f"page3_{field}_{last}", None)
+
+                        st.session_state.family_count -= 1
+                        st.rerun()
+
+                # =========================
+                # 欄位
+                # =========================
+                st.number_input(
+                    "幾歲罹癌",
+                    key=f"page3_cancer_age_{i}",
+                    min_value=10,
+                    max_value=120,
+                    value=None,
+                    placeholder="請輸入幾歲罹癌"
                 )
-    answer2 = st.selectbox("其他家族病史?",["無", "有"],key="answer2",index=None)
-    # =========================
-    # 其他家族病史
-    # =========================
+
+                st.text_input(
+                    "稱謂（父親/母親/兄弟）",
+                    key=f"page3_relation_{i}"
+                )
+
+                relation_type = st.selectbox(
+                    "與之關係",
+                    ["一等親", "二等親", "其他"],
+                    key=f"page3_relation_type_{i}"
+                )
+
+                if relation_type == "其他":
+                    st.text_input(
+                        "請填寫與之關係",
+                        key=f"page3_relation_other_{i}"
+                    )
+    MAX_OTHER = 5
+    answer2 = st.selectbox(
+        "其他家族病史?",
+        ["無", "有"],
+        key="answer2",
+        index=None
+    )
     if answer2 == "有":
         st.markdown("### 👨‍👩‍👧‍👦 其他家族病史填寫")
 
+        # 初始化
         if "other_count" not in st.session_state:
             st.session_state.other_count = 1
-        MAX_FAMILY = 3
-        col_add2, col_del2 = st.columns(2)
-        with col_add2:
-            if st.button("➕ 新增一筆家族資料", key="add_other"):
+
+        # =========================
+        # ➕ 新增
+        # =========================
+        if st.button("➕ 新增一筆家族資料（其他）"):
+            if st.session_state.other_count < MAX_OTHER:
                 st.session_state.other_count += 1
-                st.rerun()
+            else:
+                st.warning(f"最多只能新增 {MAX_OTHER} 筆")
 
-        with col_del2:
-            if st.button("➖ 刪除一筆家族資料", key="del_other"):
-                if st.session_state.other_count > 1:
-                    st.session_state.other_count -= 1
-                    st.rerun()
+        # =========================
+        # 🔁 每一筆
+        # =========================
         for i in range(st.session_state.other_count):
-                st.markdown(f"### 👨‍👩‍👧‍👦 第 {i+1} 筆")
 
+            with st.container(border=True):
+                col_title, col_del = st.columns([4, 1])
+
+                with col_title:
+                    st.markdown(f"#### 第 {i+1} 筆")
+
+                # =========================
+                # ❌ 單筆刪除（關鍵）
+                # =========================
+                with col_del:
+                    if st.button("❌", key=f"del_other_{i}"):
+
+                        # shift 後面資料往前補
+                        for j in range(i, st.session_state.other_count - 1):
+                            for field in ["cancer_age", "relation", "relation_type", "relation_other"]:
+                                st.session_state[f"other_{field}_{j}"] = st.session_state.get(
+                                    f"other_{field}_{j+1}"
+                                )
+
+                        # 清掉最後一筆
+                        last = st.session_state.other_count - 1
+                        for field in ["cancer_age", "relation", "relation_type", "relation_other"]:
+                            st.session_state.pop(f"other_{field}_{last}", None)
+
+                        st.session_state.other_count -= 1
+                        st.rerun()
+
+                # =========================
+                # 欄位
+                # =========================
                 st.number_input(
                     "幾歲罹癌",
                     key=f"other_cancer_age_{i}",
@@ -364,22 +658,23 @@ elif st.session_state.page == 2:
                     value=None,
                     placeholder="請輸入幾歲罹癌"
                 )
+
                 st.text_input(
                     "稱謂（父親/母親/兄弟）",
                     key=f"other_relation_{i}"
                 )
-                choices2= st.selectbox(
+
+                relation_type = st.selectbox(
                     "與之關係",
                     ["一等親", "二等親", "其他"],
                     key=f"other_relation_type_{i}"
                 )
 
-                if choices2 == "其他":
+                if relation_type == "其他":
                     st.text_input(
                         "請填寫與之關係",
                         key=f"other_relation_other_{i}"
                     )
-
     gene = st.selectbox("本人或家族是否有接受過基因檢測", ["是", "否"],key="gene",index=None)
     probiotics = st.selectbox("過去兩周內是否有服用益生菌?", ["是", "否"],key="probiotics",index=None)
     antibiotics = st.selectbox("過去一個月內是否服用過抗生素?", ["是", "否"],key="antibiotics",index=None)
@@ -451,7 +746,7 @@ elif st.session_state.page == 2:
         "other_symptom": other_sy
     }
 
-    # st.session_state["final_choices3"] = final_data
+    st.session_state["final_choices3"] = final_data
     st.divider()
 
     col1, col2 = st.columns(2)
@@ -543,48 +838,13 @@ elif st.session_state.page == 2:
                     st.error(f"⚠️ {e}")
                 st.stop()
             else:
-                st.session_state["final_choices"] = st.session_state.get("final_choices", [])
-                st.session_state["cancer_type"] = st.session_state.get("cancer_type")
-                st.session_state["cancer_year"] = st.session_state.get("cancer_year")
-                st.session_state["cancer_month"] = st.session_state.get("cancer_month")
-                st.session_state["cancer_age"] = st.session_state.get("cancer_age")
-                st.session_state["acute_age"] = st.session_state.get("acute_age")
-                st.session_state["acute_treat_times"] = st.session_state.get("acute_treat_times")
-                st.session_state["chronic_age"] = st.session_state.get("chronic_age")
-                st.session_state["chronic_treat_times"] = st.session_state.get("chronic_treat_times")
-                st.session_state["diabetes_type"] = st.session_state.get("diabetes_type")
-                st.session_state["diabetes_age"] = st.session_state.get("diabetes_age")
-                st.session_state["diabetes_treatment"] = st.session_state.get("diabetes_treatment")
-                st.session_state["exam"] = st.session_state.get("exam")
-                st.session_state["MRI_treatment"] = st.session_state.get("MRI_treatment")
-                st.session_state["answer1"] = st.session_state.get("answer1")
-                rows = []
-                for i in range(3):
-                    rows.append({
-                        "family_id": i+1,
-                        "age": st.session_state.get(f"page3_cancer_age_{i}"),
-                        "relation": st.session_state.get(f"page3_relation_{i}"),
-                        "type": st.session_state.get(f"page3_relation_type_{i}"),
-                        "other": st.session_state.get(f"page3_relation_other_{i}")
-                    })
-                st.session_state["family_rows"] = rows
-                other_rows = []
-                for i in range(3):  # 如果你也要固定3筆
-                    other_rows.append({
-                        "family_id": i + 1,
-                        "age": st.session_state.get(f"other_cancer_age_{i}"),
-                        "relation": st.session_state.get(f"other_relation_{i}"),
-                        "type": st.session_state.get(f"other_relation_type_{i}"),
-                        "other": st.session_state.get(f"other_relation_other_{i}")
-                    })
-
-                # 🔥 強制寫入 session_state
-                st.session_state["other_family_rows"] = other_rows
-                st.session_state["gene"] = st.session_state.get("gene")
-                st.session_state["probiotics"] = st.session_state.get("probiotics")
-                st.session_state["antibiotics"] = st.session_state.get("antibiotics")
-                st.session_state["colonoscopy"] = st.session_state.get("colonoscopy")
-                st.session_state["final_choices3"] = final_data
+                # ======================
+                clean_data = build_clean_data()
+                st.session_state["clean_data"] = clean_data
+                # ======================
+                # ✅ 2. 標記已送出（可選但推薦）
+                # ======================
+                # st.session_state["submitted"] = True
                 st.session_state.page = 3
                 st.rerun()
 
@@ -625,10 +885,10 @@ elif st.session_state.page == 3:
     if smoke=="已經戒菸" :
         col1, col2 = st.columns(2)
         with col1:
-            st.selectbox("戒菸___年", list(range(1, 91)), key="quit_year",index=None)
+            st.selectbox("戒菸___年", list(range(1, 91)), key="quit_smoke_year",index=None)
         with col2:
-            st.selectbox("戒菸___月", list(range(1, 13)), key="quit_month",index=None)
-        st.number_input("幾歲時戒菸", key="quit_age", min_value=10, max_value=120,value=None,placeholder="請輸入戒菸時的年齡")
+            st.selectbox("戒菸___月", list(range(1, 13)), key="quit_smoke_month",index=None)
+        st.number_input("幾歲時戒菸", key="quit_smoke_age", min_value=10, max_value=120,value=None,placeholder="請輸入戒菸時的年齡")
     # =========================
     # 其他菸品
     # =========================
@@ -714,7 +974,9 @@ elif st.session_state.page == 3:
             st.session_state.page = st.session_state.page - 1
             st.rerun()
     with col2:
-        if st.button("✅ 完成問卷") and not st.session_state.get("submitted", False):
+        if st.button("✅ 完成問卷"):
+
+            st.write("1️⃣ 按鈕有觸發")
 
             missing = False
 
@@ -724,30 +986,11 @@ elif st.session_state.page == 3:
             if not st.session_state.get("smoke"):
                 missing = True
 
-            else:
-                smoke = st.session_state.get("smoke")
-
-                if smoke == "每天吸(幾乎)":
-                    if not st.session_state.get("smokes") or not st.session_state.get("smokes_years"):
-                        missing = True
-
-                if smoke == "已經戒菸":
-                    if not st.session_state.get("quit_year") or not st.session_state.get("quit_month"):
-                        missing = True
-
             # ======================
             # 🚬 其他菸品
             # ======================
             if not st.session_state.get("other_smoke"):
                 missing = True
-
-            if st.session_state.get("other_smoke") == "是":
-                if not st.session_state.get("other_smoke_type"):
-                    missing = True
-
-                if "其他" in (st.session_state.get("other_smoke_type") or []):
-                    if not st.session_state.get("smokes_other"):
-                        missing = True
 
             # ======================
             # 🍺 飲酒
@@ -755,50 +998,50 @@ elif st.session_state.page == 3:
             if not st.session_state.get("drink1"):
                 missing = True
 
-            if st.session_state.get("drink1") and st.session_state.get("drink1") != "未曾飲酒":
-
-                required_drink = [
-                    "alcohol_type",
-                    "drink2",
-                    "drink_freq",
-                    "max_drink",
-                    "max_drink_type"
-                ]
-
-                for k in required_drink:
-                    if not st.session_state.get(k):
-                        missing = True
-
-                if st.session_state.get("drink4") == "是":
-                    if not st.session_state.get("quit_year") or not st.session_state.get("quit_month"):
-                        missing = True
-
-            # ======================
             if missing:
-                st.error("⚠️ 仍有欄位尚未填寫，請完成所有生活習慣問題")
+                st.error("⚠️ 有欄位沒填")
                 st.stop()
-        
-            st.session_state["submitted"] = True
 
-              # ======================
-            # 🔥 組資料
-            # ======================
-            data = {k: st.session_state.get(k, None) for k in EXPORT_SCHEMA}
-            data["record_id"] = str(uuid.uuid4())[:8]
-            data["submit_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.write("2️⃣ 開始 build data")
 
-            # list → string
-            for k, v in data.items():
-                if isinstance(v, list):
-                    data[k] = ", ".join(map(str, v))
+            try:
+                data = build_clean_data()
 
-            # ======================
-            # 🔥 這一行你現在少掉的關鍵
-            # ======================
-            save_to_gsheet(data)
-            # 5️⃣ 完成頁
+                st.write("3️⃣ build 成功")
+                st.write(data)
+
+            except Exception as e:
+                st.error(f"build_clean_data 錯誤: {e}")
+                st.stop()
+
+            st.write("4️⃣ 開始寫入 Google Sheet")
+
+            import traceback
+            try:
+
+                st.write("A")
+                sheet = init_gsheet()
+
+                st.write("B")
+
+                save_to_gsheet(data)
+
+                st.success("✅ 已成功寫入 Google Sheets")
+
+            except Exception as e:
+
+                st.error(f"Google Sheet 錯誤: {e}")
+
+                st.code(traceback.format_exc())
+
+                st.stop()
+
+            st.write("5️⃣ 準備跳轉 done page")
+
             st.session_state.page = "done"
+
             st.rerun()
+
 if st.session_state.page == "done":
     st.success("問卷已完成！感謝您的填寫 🙏")
 from datetime import datetime
