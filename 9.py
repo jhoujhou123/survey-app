@@ -333,7 +333,7 @@ if st.session_state.page == 1:
 
         gender = st.selectbox("性別", ["男", "女"],index=None)
 
-        height = st.number_input("身高 (公分)", min_value=50, max_value=230,value=None,placeholder="請輸入身高")
+        height = st.number_input("身高 (公分)", min_value=1, max_value=230,value=None,placeholder="請輸入身高")
 
         weight = st.number_input("體重 (公斤)", min_value=1, max_value=230,value=None,placeholder="請輸入體重")
 
@@ -492,14 +492,14 @@ elif st.session_state.page == 2:
             if cancer_year == "" or cancer_month == "":
                 st.warning("請完整填寫患癌時間")
                 st.stop()
-            cancer_age = st.number_input("請輸入患癌年齡", key="cancer_age", min_value=10, max_value=120,value=None,placeholder="請輸入患癌年齡多少年了")
+            cancer_age = st.number_input("請輸入患癌年齡", key="cancer_age", min_value=0, max_value=120,value=None,placeholder="請輸入患癌年齡多少年了")
     if "急性胰臟炎" in choices:
         with st.expander("🧪 急性胰臟炎"):
-            acute_age = st.number_input("請輸入發生急性胰臟炎的年齡", key="acute_age", min_value=10, max_value=120,value=None,placeholder="請輸入發生急性胰臟炎的年齡")
+            acute_age = st.number_input("請輸入發生急性胰臟炎的年齡", key="acute_age", min_value=0, max_value=120,value=None,placeholder="請輸入發生急性胰臟炎的年齡")
             acute_treat_times = st.number_input("請輸入治療次數", key="acute_treat_times", min_value=0, max_value=120,value=None,placeholder="請輸入治療次數")
     if "慢性胰臟炎" in choices:
         with st.expander("🧪 慢性胰臟炎資料"):
-            chronic_age =  st.number_input("請輸入發生急性胰臟炎的年齡", key="chronic_age", min_value=10, max_value=120,value=None,placeholder="請輸入發生急性胰臟炎的年齡")
+            chronic_age =  st.number_input("請輸入發生急性胰臟炎的年齡", key="chronic_age", min_value=0, max_value=120,value=None,placeholder="請輸入發生急性胰臟炎的年齡")
             chronic_treat_times =st.number_input("請輸入治療次數", key="chronic_treat_times", min_value=0, max_value=120,value=None,placeholder="請輸入治療次數")
     if "糖尿病" in choices:
         with st.expander("🩸 糖尿病資料"):
@@ -577,7 +577,7 @@ elif st.session_state.page == 2:
                 st.number_input(
                     "幾歲罹癌",
                     key=f"page3_cancer_age_{i}",
-                    min_value=10,
+                    min_value=0,
                     max_value=120,
                     value=None,
                     placeholder="請輸入幾歲罹癌"
@@ -660,7 +660,7 @@ elif st.session_state.page == 2:
                 st.number_input(
                     "幾歲罹癌",
                     key=f"other_cancer_age_{i}",
-                    min_value=10,
+                    min_value=0,
                     max_value=120,
                     value=None,
                     placeholder="請輸入幾歲罹癌"
@@ -878,8 +878,8 @@ elif st.session_state.page == 3:
     #     choices2 = [choices2]
 
     if smoke == "每天吸(幾乎)":
-        avg_smoke = st.number_input("平均每天幾支菸", key="smokes", min_value=1, max_value=120,value=None,placeholder="請輸入平均每天幾支菸")
-        smoke_age = st.number_input("菸齡", key="smokes_years", min_value=10, max_value=120,value=None,placeholder="請輸入抽菸多少年了")
+        avg_smoke = st.number_input("平均每天幾支菸", key="smokes", min_value=0, max_value=120,value=None,placeholder="請輸入平均每天幾支菸")
+        smoke_age = st.number_input("菸齡", key="smokes_years", min_value=0, max_value=120,value=None,placeholder="請輸入抽菸多少年了")
         if avg_smoke == "" :
             st.warning("請完整填寫平均每天幾支菸")
             st.stop()
@@ -895,7 +895,7 @@ elif st.session_state.page == 3:
             st.selectbox("戒菸___年", list(range(1, 91)), key="quit_smoke_year",index=None)
         with col2:
             st.selectbox("戒菸___月", list(range(1, 13)), key="quit_smoke_month",index=None)
-        st.number_input("幾歲時戒菸", key="quit_smoke_age", min_value=10, max_value=120,value=None,placeholder="請輸入戒菸時的年齡")
+        st.number_input("幾歲時戒菸", key="quit_smoke_age", min_value=0, max_value=120,value=None,placeholder="請輸入戒菸時的年齡")
     # =========================
     # 其他菸品
     # =========================
